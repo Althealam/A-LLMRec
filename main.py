@@ -19,11 +19,11 @@ if __name__ == "__main__":
     parser.add_argument("--recsys", type=str, default='sasrec')
     
     # dataset setting
-    parser.add_argument("--rec_pre_trained_data", type=str, default='Movies_and_TV')
+    parser.add_argument("--rec_pre_trained_data", type=str, default='All_Beauty')
     
     # train phase setting
-    parser.add_argument("--pretrain_stage1", action='store_true')
-    parser.add_argument("--pretrain_stage2", action='store_true')
+    parser.add_argument("--pretrain_stage1", action='store_true', default='True')
+    parser.add_argument("--pretrain_stage2", action='store_true', default='True')
     parser.add_argument("--inference", action='store_true')
     
     # hyperparameters options
@@ -40,8 +40,10 @@ if __name__ == "__main__":
     args.device = 'cuda:' + str(args.gpu_num)
     
     if args.pretrain_stage1:
+        print("开始进入预训练的stage 1")
         train_model_phase1(args)
     elif args.pretrain_stage2:
+        print("开始进入预训练的stage 2")
         train_model_phase2(args)
     elif args.inference:
         inference(args)

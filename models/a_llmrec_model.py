@@ -31,7 +31,7 @@ class A_llmrec_model(nn.Module):
         self.args = args
         self.device = args.device
         
-        with open(f'./data/amazon/{args.rec_pre_trained_data}_text_name_dict.json.gz','rb') as ft:
+        with open(f'/root/repo/A-LLMRec/data/Amazon/{args.rec_pre_trained_data}_text_name_dict.json.gz','rb') as ft:
             self.text_name_dict = pickle.load(ft)
         
         self.recsys = RecSys(args.recsys, rec_pre_trained_data, self.device)
@@ -80,7 +80,7 @@ class A_llmrec_model(nn.Module):
             nn.init.xavier_normal_(self.item_emb_proj[3].weight)
             
     def save_model(self, args, epoch1=None, epoch2=None):
-        out_dir = f'./models/saved_models/'
+        out_dir = f'/root/repo/A-LLMRec/models/saved_models/'
         create_dir(out_dir)
         out_dir += f'{args.rec_pre_trained_data}_{args.recsys}_{epoch1}_'
         if args.pretrain_stage1:
@@ -94,7 +94,7 @@ class A_llmrec_model(nn.Module):
             torch.save(self.item_emb_proj.state_dict(), out_dir + 'item_proj.pt')
             
     def load_model(self, args, phase1_epoch=None, phase2_epoch=None):
-        out_dir = f'./models/saved_models/{args.rec_pre_trained_data}_{args.recsys}_{phase1_epoch}_'
+        out_dir = f'/root/repo/A-LLMRec/models/saved_models/{args.rec_pre_trained_data}_{args.recsys}_{phase1_epoch}_'
         
         mlp = torch.load(out_dir + 'mlp.pt', map_location = args.device)
         self.mlp.load_state_dict(mlp)
@@ -408,7 +408,7 @@ class A_llmrec_model(nn.Module):
             output_text = [text.strip() for text in output_text]
 
         for i in range(len(text_input)):
-            f = open(f'./recommendation_output.txt','a')
+            f = open(f'/root/repo/A-LLMRec/recommendation_output.txt','a')
             f.write(text_input[i])
             f.write('\n\n')
             
