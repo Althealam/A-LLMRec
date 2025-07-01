@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import torch
 import random
@@ -47,22 +49,34 @@ def inference(args):
         inference_(0,0,args)
   
 def train_model_phase1_(rank, world_size, args):
-    if args.multi_gpu:
+    """
+    rank: 当前进程的编号，用于多GPU训练时区分不同的GPU
+    world_size: 总进程数，也就是GPU的数量
+    args: 包含训练参数的命名空间对象
+    setup_ddp: 初始化分布式数据并行的环境
+    args.device: 设置当前进程使用的GPU设备
+    """
+    if args.multi_gpu: 
         setup_ddp(rank, world_size)
         args.device = 'cuda:' + str(rank)
-        
+    
+    # 初始化自定义的模型，并将其转移到指定设备
     model = A_llmrec_model(args).to(args.device)
     
     # preprocess data
-    dataset = data_partition(args.rec_pre_trained_data, path=f'./data/amazon/{args.rec_pre_trained_data}.txt')
+    # 对数据进行划分，返回训练集、验证集、测试集、用户数量和物品数量
+    dataset = data_partition(args.rec_pre_trained_data, path=f'/root/repo/A-LLMRec/data/Amazon/{args.rec_pre_trained_data}.txt')
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
     print('user num:', usernum, 'item num:', itemnum)
+    # 计算训练所需要的批次数
     num_batch = len(user_train) // args.batch_size1
+    # 计算所有用户训练序列的总长度
     cc = 0.0
     for u in user_train:
         cc += len(user_train[u])
     print('average sequence length: %.2f' % (cc / len(user_train)))
     # Init Dataloader, Model, Optimizer
+    # 数据加载器与优化器初始化
     train_data_set = SeqDataset(user_train, usernum, itemnum, args.maxlen)
     if args.multi_gpu:
         train_data_loader = DataLoader(train_data_set, batch_size = args.batch_size1, sampler=DistributedSampler(train_data_set, shuffle=True), pin_memory=True)
@@ -72,13 +86,14 @@ def train_model_phase1_(rank, world_size, args):
         
     adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.stage1_lr, betas=(0.9, 0.98))
     
+    # 训练循环
     epoch_start_idx = 1
     T = 0.0
-    model.train()
-    t0 = time.time()
+    model.train() # 模型设置为训练模式
+    t0 = time.time() # 记录训练开始时间
     for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1)):
         if args.multi_gpu:
-            train_data_loader.sampler.set_epoch(epoch)
+            train_data_loader.sampler.set_epoch(epoch) # 多GPU训练时，设置采样的epoch，确保数据随机打乱
         for step, data in enumerate(train_data_loader):
             u, seq, pos, neg = data
             u, seq, pos, neg = u.numpy(), seq.numpy(), pos.numpy(), neg.numpy()
@@ -106,7 +121,7 @@ def train_model_phase2_(rank,world_size,args):
     phase1_epoch = 10
     model.load_model(args, phase1_epoch=phase1_epoch)
 
-    dataset = data_partition(args.rec_pre_trained_data, path=f'./data/amazon/{args.rec_pre_trained_data}.txt')
+    dataset = data_partition(args.rec_pre_trained_data, path=f'/root/repo/A-LLMRec/data/Amazon/{args.rec_pre_trained_data}.txt')
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
     print('user num:', usernum, 'item num:', itemnum)
     num_batch = len(user_train) // args.batch_size2
@@ -157,7 +172,7 @@ def inference_(rank, world_size, args):
     phase2_epoch = 5
     model.load_model(args, phase1_epoch=phase1_epoch, phase2_epoch=phase2_epoch)
 
-    dataset = data_partition(args.rec_pre_trained_data, path=f'./data/amazon/{args.rec_pre_trained_data}.txt')
+    dataset = data_partition(args.rec_pre_trained_data, path=f'/root/repo/A-LLMRec/data/Amazon/{args.rec_pre_trained_data}.txt')
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
     print('user num:', usernum, 'item num:', itemnum)
     num_batch = len(user_train) // args.batch_size_infer

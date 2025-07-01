@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import sys
 import argparse
@@ -40,10 +42,8 @@ if __name__ == "__main__":
     args.device = 'cuda:' + str(args.gpu_num)
     
     if args.pretrain_stage1:
-        print("开始进入预训练的stage 1")
         train_model_phase1(args)
     elif args.pretrain_stage2:
-        print("开始进入预训练的stage 2")
         train_model_phase2(args)
     elif args.inference:
         inference(args)

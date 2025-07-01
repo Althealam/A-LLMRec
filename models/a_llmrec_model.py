@@ -29,21 +29,28 @@ class A_llmrec_model(nn.Module):
         super().__init__()
         rec_pre_trained_data = args.rec_pre_trained_data
         self.args = args
-        self.device = args.device
-        
+        self.device = args.device # 设备信息（cpu, cuda）
+
+        # 加载商品文本信息
         with open(f'/root/repo/A-LLMRec/data/Amazon/{args.rec_pre_trained_data}_text_name_dict.json.gz','rb') as ft:
             self.text_name_dict = pickle.load(ft)
         
+        # 初始化推荐系统模型
         self.recsys = RecSys(args.recsys, rec_pre_trained_data, self.device)
+        # 推荐系统中的商品数量
         self.item_num = self.recsys.item_num
+        # 推荐系统模型中隐藏单元维度
         self.rec_sys_dim = self.recsys.hidden_units
+        # 设置SentenceTransformer模型的输出维度为768
         self.sbert_dim = 768
         
+        # 初始化多层感知机和SentenceTransformer模型
         self.mlp = two_layer_mlp(self.rec_sys_dim)
         if args.pretrain_stage1:
             self.sbert = SentenceTransformer('nq-distilbert-base-v1')
             self.mlp2 = two_layer_mlp(self.sbert_dim)
         
+        # 初始化损失函数和评估指标
         self.mse = nn.MSELoss()
         
         self.maxlen = args.maxlen
@@ -58,6 +65,7 @@ class A_llmrec_model(nn.Module):
         
         self.bce_criterion = torch.nn.BCEWithLogitsLoss()
         
+        # 初始化大预言模型和投影层
         if args.pretrain_stage2 or args.inference:
             self.llm = llm4rec(device=self.device, llm_model=args.llm)
             

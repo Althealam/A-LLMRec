@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import sys
 import copy
 import torch
@@ -147,14 +149,16 @@ class SeqDataset_Inference(Dataset):
         return user_id, seq, pos, neg
 # train/val/test data generation
 def data_partition(fname, path=None):
-    usernum = 0
-    itemnum = 0
-    User = defaultdict(list)
-    user_train = {}
-    user_valid = {}
-    user_test = {}
+    """数据划分函数，读取用户-物品交互数据文件"""
+    usernum = 0 # 记录最大的用户ID
+    itemnum = 0 # 记录最大的物品ID
+    User = defaultdict(list) # 键为UserID，值为该用户交互过的物品ID列表
+    user_train = {} # 训练集 
+    user_valid = {} # 验证集
+    user_test = {} # 测试集
     # assume user/item index starting from 1
     
+    ###### 文件读取与数据收集 #########
     # f = open('./pre_train/sasrec/data/%s.txt' % fname, 'r')
     if path == None:
         f = open('/root/repo/A-LLMRec/data/Amazon/%s.txt' % fname, 'r')
@@ -168,14 +172,16 @@ def data_partition(fname, path=None):
         itemnum = max(i, itemnum)
         User[u].append(i)
 
+    ######## 数据划分 #########
     for user in User:
+        # 计算每个用户的交互记录
         nfeedback = len(User[user])
-        if nfeedback < 3:
+        if nfeedback < 3: # 如果交互记录小于3，则将该用户的交互记录都放入训练集
             user_train[user] = User[user]
             user_valid[user] = []
             user_test[user] = []
         else:
-            user_train[user] = User[user][:-2]
+            user_train[user] = User[user][:-2] # 将倒数第二天交互记录作为验证集
             user_valid[user] = []
             user_valid[user].append(User[user][-2])
             user_test[user] = []
