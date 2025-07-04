@@ -12,10 +12,16 @@ class llm4rec(nn.Module):
         llm_model="",
         max_output_txt_len=256,
     ):
+        """
+        :param device: 指定模型要运行的设备
+        :param llm_model: 预训练模型的名称
+        :param max_output_txt_len: 输出文本的最大长度
+        """
         super().__init__()
         self.device = device
         
         if llm_model == 'opt':
+            # 加载预训练模型
             self.llm_model = OPTForCausalLM.from_pretrained("facebook/opt-6.7b", torch_dtype=torch.float16, load_in_8bit=True, device_map=self.device)
             self.llm_tokenizer = AutoTokenizer.from_pretrained("facebook/opt-6.7b", use_fast=False)
             # self.llm_model = OPTForCausalLM.from_pretrained("facebook/opt-6.7b", torch_dtype=torch.float16, device_map=self.device)
@@ -36,6 +42,7 @@ class llm4rec(nn.Module):
         self.max_output_txt_len = max_output_txt_len
 
     def concat_text_input_output(self, input_ids, input_atts, output_ids, output_atts):
+
         input_part_targets_len = []
         llm_tokens = {"input_ids": [], "attention_mask": []}
         for i in range(input_ids.size(0)):
@@ -60,6 +67,13 @@ class llm4rec(nn.Module):
         return llm_tokens, input_part_targets_len
 
     def replace_hist_candi_token(self, llm_tokens, inputs_embeds, interact_embs, candidate_embs):
+        """
+        将输入嵌入中的HistoryEmb和CandidateEmb替换为对应的embedding和候选embedding
+        :param llm_tokens: 包含input_ids和attention_mask的字典
+        :param inputs_embed: 输入的词嵌入
+        :param interact_embs: 交互嵌入列表
+        :param candidate_embs: 候选嵌入列表
+        """
         if len(interact_embs) == 0:
             return llm_tokens, inputs_embeds
         history_token_id = self.llm_tokenizer("[HistoryEmb]", return_tensors="pt", add_special_tokens=False).input_ids.item()
@@ -76,6 +90,10 @@ class llm4rec(nn.Module):
         return llm_tokens, inputs_embeds
     
     def forward(self, log_emb, samples):
+        """
+        :param log_emb: 日志嵌入
+        :param samples: 包含text_input, text_output, interact和candidate的字典
+        """
         atts_llm = torch.ones(log_emb.size()[:-1], dtype=torch.long).to(self.device)
         atts_llm = atts_llm.unsqueeze(1)
             

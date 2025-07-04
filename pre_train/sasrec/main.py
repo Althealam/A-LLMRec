@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
+
 import os
 import time
 import torch
 import argparse
-
+import numpy as np
 from model import SASRec
 from data_preprocess import *
 from utils import *
@@ -28,9 +30,10 @@ args = parser.parse_args()
 
 if __name__ == '__main__':
     
+    # ======== 数据预处理和统计 ===============
     # global dataset
-    preprocess(args.dataset)
-    dataset = data_partition(args.dataset)
+    preprocess(args.dataset) # 预处理数据，将用户-物品交互记录转换为一对一的序列数据
+    dataset = data_partition(args.dataset) # 数据划分为训练集、验证集、测试集
 
     [user_train, user_valid, user_test, usernum, itemnum] = dataset
     print('user num:', usernum, 'item num:', itemnum)
@@ -40,19 +43,23 @@ if __name__ == '__main__':
         cc += len(user_train[u])
     print('average sequence length: %.2f' % (cc / len(user_train)))
     
+    # ============== 数据采样和模型初始化 =================
     # dataloader
-    sampler = WarpSampler(user_train, usernum, itemnum, batch_size=args.batch_size, maxlen=args.maxlen, n_workers=3)       
+    sampler = WarpSampler(user_train, usernum, itemnum, batch_size=args.batch_size, maxlen=args.maxlen, n_workers=3) # 使用WarpSampler进行数据采样    
     # model init
-    model = SASRec(usernum, itemnum, args).to(args.device)
+    model = SASRec(usernum, itemnum, args).to(args.device) # 初始化SASRec模型并且移动到指定设备上
     
+    # 对模型参数进行Xavier正态初始化
     for name, param in model.named_parameters():
         try:
-            torch.nn.init.xavier_normal_(param.data)
-        except:
+            torch.nn.init.xavier_normal_(param.data) 
+        except: 
             pass
     
+    # 将模型设置为训练模式
     model.train()
     
+    # 加载预训练模型
     epoch_start_idx = 1
     if args.state_dict_path is not None:
         try:
@@ -68,35 +75,43 @@ if __name__ == '__main__':
             print('pdb enabled for your quick check, pls type exit() if you do not need it')
             import pdb; pdb.set_trace()
     
+    # 推理模式
     if args.inference_only:
         model.eval()
         t_test = evaluate(model, dataset, args)
         print('test (NDCG@10: %.4f, HR@10: %.4f)' % (t_test[0], t_test[1]))
     
-    bce_criterion = torch.nn.BCEWithLogitsLoss()
-    adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98))
+    # 训练配置
+    bce_criterion = torch.nn.BCEWithLogitsLoss() # 二元交叉熵损失函数
+    adam_optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.9, 0.98)) # Adam优化器
     
     T = 0.0
     t0 = time.time()
     
-    for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1)):
+    # 训练循环
+    for epoch in tqdm(range(epoch_start_idx, args.num_epochs + 1)): # 遍历训练批次
         if args.inference_only: break
-        for step in range(num_batch):
+        for step in range(num_batch): # 遍历每个批次
+            # 从采样器获取批量数据
             u, seq, pos, neg = sampler.next_batch()
             u, seq, pos, neg = np.array(u), np.array(seq), np.array(pos), np.array(neg)
+            # 输入模型得到正样本和负样本的logits
             pos_logits, neg_logits = model(u, seq, pos, neg)
             pos_labels, neg_labels = torch.ones(pos_logits.shape, device=args.device), torch.zeros(neg_logits.shape, device=args.device)
 
             adam_optimizer.zero_grad()
             indices = np.where(pos != 0)
+            # 计算损失，包括二元交叉熵损失和L2正则化损失
             loss = bce_criterion(pos_logits[indices], pos_labels[indices])
             loss += bce_criterion(neg_logits[indices], neg_labels[indices])
             for param in model.item_emb.parameters(): loss += args.l2_emb * torch.norm(param)
+            # 反向传播更新模型参数
             loss.backward()
             adam_optimizer.step()
-            if step % 100 == 0:
+            if step % 100 == 0: # 每次间隔100步打印一次损失值
                 print("loss in epoch {} iteration {}: {}".format(epoch, step, loss.item())) # expected 0.4~0.6 after init few epochs
     
+        # 每20个轮次将模型设置为评估模式，进行验证和测试，并打印评估结果
         if epoch % 20 == 0 or epoch == 1:
             model.eval()
             t1 = time.time() - t0

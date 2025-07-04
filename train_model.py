@@ -97,6 +97,7 @@ def train_model_phase1_(rank, world_size, args):
         for step, data in enumerate(train_data_loader):
             u, seq, pos, neg = data
             u, seq, pos, neg = u.numpy(), seq.numpy(), pos.numpy(), neg.numpy()
+            # 设置为第一阶段
             model([u,seq,pos,neg], optimizer=adam_optimizer, batch_iter=[epoch,args.num_epochs + 1,step,num_batch], mode='phase1')
             if step % max(10,num_batch//100) ==0:
                 if rank ==0:

@@ -25,6 +25,7 @@ class two_layer_mlp(nn.Module):
         return x, x1
 
 class A_llmrec_model(nn.Module):
+    """A_llmrec_model看作是所有模型的总和"""
     def __init__(self, args):
         super().__init__()
         rec_pre_trained_data = args.rec_pre_trained_data
@@ -65,7 +66,7 @@ class A_llmrec_model(nn.Module):
         
         self.bce_criterion = torch.nn.BCEWithLogitsLoss()
         
-        # 初始化大预言模型和投影层
+        # 初始化大语言模型和投影层
         if args.pretrain_stage2 or args.inference:
             self.llm = llm4rec(device=self.device, llm_model=args.llm)
             
@@ -161,6 +162,12 @@ class A_llmrec_model(nn.Module):
             self.generate(data)
 
     def pre_train_phase1(self,data,optimizer, batch_iter):
+        """
+        第一阶段训练
+        data：包含用户ID、用户行为序列、正样本物品ID、负样本物品ID
+        optimizer：更新模型参数的优化器
+        batch_iter：包含当前训练轮数 (epoch)、总训练轮数 (total_epoch)、当前迭代步数 (step) 和总迭代步数 (total_step) 的元组
+        """
         epoch, total_epoch, step, total_step = batch_iter
         
         self.sbert.train()
@@ -202,23 +209,27 @@ class A_llmrec_model(nn.Module):
             pos_text = self.find_item_text(pos__)
             neg_text = self.find_item_text(neg__)
             
+            # 使用sbert模型对文本进行分词和编码，得到文本嵌入
             pos_token = self.sbert.tokenize(pos_text)
             pos_text_embedding= self.sbert({'input_ids':pos_token['input_ids'].to(self.device),'attention_mask':pos_token['attention_mask'].to(self.device)})['sentence_embedding']
             neg_token = self.sbert.tokenize(neg_text)
             neg_text_embedding= self.sbert({'input_ids':neg_token['input_ids'].to(self.device),'attention_mask':neg_token['attention_mask'].to(self.device)})['sentence_embedding']
             
+            # 通过MLP处理文本嵌入，得到匹配嵌入和投影嵌入
             pos_text_matching, pos_proj = self.mlp(pos_emb)
             neg_text_matching, neg_proj = self.mlp(neg_emb)
             
             pos_text_matching_text, pos_text_proj = self.mlp2(pos_text_embedding)
             neg_text_matching_text, neg_text_proj = self.mlp2(neg_text_embedding)
             
+            # 计算BPR损失
             pos_logits, neg_logits = (log_emb*pos_proj).mean(axis=1), (log_emb*neg_proj).mean(axis=1)
             pos_labels, neg_labels = torch.ones(pos_logits.shape, device=pos_logits.device), torch.zeros(neg_logits.shape, device=pos_logits.device)
 
             loss = self.bce_criterion(pos_logits, pos_labels)
             loss += self.bce_criterion(neg_logits, neg_labels)
-            
+
+            # 计算其他损失：匹配损失（物品嵌入和文本嵌入的匹配程度）、重构损失（投影嵌入和物品嵌入的匹配程度）、文本重构损失（文本嵌入和文本匹配嵌入的匹配程度）
             matching_loss = self.mse(pos_text_matching,pos_text_matching_text) + self.mse(neg_text_matching,neg_text_matching_text)
             reconstruction_loss = self.mse(pos_proj,pos_emb) + self.mse(neg_proj,neg_emb)
             text_reconstruction_loss = self.mse(pos_text_proj,pos_text_embedding.data) + self.mse(neg_text_proj,neg_text_embedding.data)

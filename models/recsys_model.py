@@ -23,7 +23,10 @@ def load_checkpoint(recsys, pre_trained):
     return kwargs, checkpoint
 
 class RecSys(nn.Module):
-    """SASRec部分（用用户历史购物序列的正负样本来做Transformer，获取当前候选物品和历史物品的点积作为分数）"""
+    """
+    SASRec部分（用用户历史购物序列的正负样本来做Transformer，获取当前候选物品和历史物品的点积作为分数）
+    这段代码主要是用来加载pre_train阶段的预训练参数的
+    """
     def __init__(self, recsys_model, pre_trained_data, device):
         super().__init__()
         kwargs, checkpoint = load_checkpoint(recsys_model, pre_trained_data)
